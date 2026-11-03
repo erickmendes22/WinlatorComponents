@@ -1,0 +1,36 @@
+name: Atualizar catalogo Winlator
+on:
+  push:
+    branches: [components]
+    paths:
+      - 'packages/vkd3d/**'
+      - 'scripts/update_contents.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch components
+        uses: actions/checkout@v4
+        with:
+          ref: components
+
+      - name: Gerar indice de WCPs validados
+        run: python3 scripts/update_contents.py
+
+      - name: Publicar catalogo atualizado
+        shell: bash
+        run: |
+          if ! git diff --quiet -- contents.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add contents.json
+            git commit -m "chore(components): refresh Winlator component catalog"
+            git push origin HEAD:components
+          else
+            echo "Catalogo ja atualizado"
+          fi
