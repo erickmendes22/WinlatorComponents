@@ -1,0 +1,62 @@
+name: DD Turnip 0.9.1 Bionic + Linux GPU6
+
+on:
+  push:
+    branches: [dd-turnip-v0.9.1-bionic-port]
+    paths:
+      - ".github/workflows/build-dd-turnip-bionic.yml"
+      - "dd-turnip-bionic/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Mesa host build tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends ninja-build flex bison glslang-tools pkg-config python3-pip
+          sudo python3 -m pip install --break-system-packages --quiet 'meson>=1.5' mako pyyaml packaging
+      - name: Android NDK r26d
+        id: ndk
+        uses: nttld/setup-ndk@afb4c9964b521afb97c864b7d40b11e6911bd410
+        with:
+          ndk-version: r26d
+          add-to-path: false
+          local-cache: true
+      - name: Checkout exact DD recipe
+        run: |
+          git clone -q --filter=blob:none https://github.com/Droid-Deck/Drivers.git drivers
+          git -C drivers checkout -q ac34abe1406645fe18e12db9fe3102ebd2c637d2
+          test "$(git -C drivers rev-parse HEAD)" = ac34abe1406645fe18e12db9fe3102ebd2c637d2
+      - name: Port six common Linux GPU patches to Android
+        run: python3 dd-turnip-bionic/port.py drivers/patches/series.json
+      - name: Fetch exact release Mesa
+        run: |
+          drivers/scripts/fetch_mesa.sh drivers/work/mesa 0c418c5054a1223668c73614227c5f4cb67addaf
+          test "$(git -C drivers/work/mesa rev-parse HEAD)" = 0c418c5054a1223668c73614227c5f4cb67addaf
+      - name: Compile Android Bionic Turnip
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+          BUILD_JOBS: "4"
+        run: drivers/scripts/build_android.sh drivers/work/mesa
+      - name: Validate and package Adrenotools ZIP
+        run: python3 dd-turnip-bionic/package.py drivers/out/android/libvulkan_freedreno.so
+      - name: Upload Android Turnip ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: DD-Turnip-v0.9.1-Bionic-LinuxGPU6
+          path: dist/
+          if-no-files-found: error
+      - name: Upload patch log if build fails
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dd-turnip-patch-log
+          path: drivers/work/android/patch.log
+          if-no-files-found: ignore
