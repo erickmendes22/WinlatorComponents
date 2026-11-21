@@ -26,7 +26,7 @@ LINUX_SPECIFIC = {
 def port(path: Path) -> None:
     data = json.loads(path.read_text(encoding="utf-8"))
     paths = {entry["file"] for entry in data}
-    missing = set(PORT) | LINUX_SPECIFIC - paths
+    missing = (set(PORT) | LINUX_SPECIFIC) - paths
     if missing:
         raise RuntimeError(f"DD release patch set changed: {sorted(missing)}")
     changed = []
